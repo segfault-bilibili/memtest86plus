@@ -71,14 +71,14 @@ startup32:
 	# Enable PAE.
 
 	movl	%cr4, %eax
-	orl	$0x20, %eax
+	orw	$0x20, %ax
 	movl	%eax, %cr4
 
 	# Enable long mode.
 
 	movl	$0xc0000080, %ecx
 	rdmsr
-	orl	$0x00000100, %eax
+	orw	$0x0100, %ax
 	wrmsr
 
 	# Enable paging and protection.
@@ -453,14 +453,14 @@ gdt_descr:
 	.quad	0			# addr: filled in at run time
 
 	.align	4
-	.globl	gdt
+//	.globl	gdt
 gdt:
 	.quad	0x0000000000000000	# NULL descriptor
 	.quad	0x0000000000000000	# not used
 	.quad	0x00209a0000000000	# 0x10 64-bit code at 0x000000
 	.quad	0x0000920000000000	# 0x18 64-bit data at 0x000000
 
-	.globl	gdt_end
+//	.globl	gdt_end
 gdt_end:
 
 	.data
@@ -512,12 +512,12 @@ pdp:
 # Page Directory Table is used (no page tables).
 
 	.align	4096
-	.globl	pd0
+//	.globl	pd0
 pd0:
 	ptes64	0x0000000000000000
 
 	.align	4096
-	.globl	pd1
+//	.globl	pd1
 pd1:
 	ptes64	0x0000000040000000
 
@@ -567,14 +567,14 @@ data32	lgdt	ap_gdt_descr - ap_trampoline
 	# Enable PAE.
 
 	movl	%cr4, %eax
-	orl	$0x20, %eax
+	orw	$0x20, %ax
 	movl	%eax, %cr4
 
 	# Enable long mode.
 
 	movl	$0xc0000080, %ecx
 	rdmsr
-	orl	$0x00000100, %eax
+	orw	$0x100, %ax
 	wrmsr
 
 	# Enable paging and protection.

@@ -68,16 +68,16 @@ extern uint8_t	startup32[];
 
 extern uint8_t	startup[];
 
-extern uint64_t	pml4[];
+extern uint64_t	pml4[] __attribute__((visibility("hidden")));
 
-extern uint64_t	pdp[];
+extern uint64_t	pdp[] __attribute__((visibility("hidden")));
 
-extern uint64_t	pd0[];
-extern uint64_t	pd1[];
-extern uint64_t	pd2[];
-extern uint64_t	pd3[];
+/*extern uint64_t	pd0[] __attribute__((visibility("hidden")));
+extern uint64_t	pd1[] __attribute__((visibility("hidden")));*/
+extern uint64_t	pd2[] __attribute__((visibility("hidden")));
+extern uint64_t	pd3[] __attribute__((visibility("hidden")));
 
-extern uintptr_t boot_params_addr;
+extern uintptr_t boot_params_addr __attribute__((visibility("hidden")));
 
 extern uint8_t	ap_trampoline[];
 
@@ -85,7 +85,7 @@ extern uint32_t	ap_startup_addr;
 
 extern uint8_t	ap_trampoline_end[];
 
-extern uint8_t	_stacks[];
+extern uint8_t	_stacks[] __attribute__((visibility("hidden")));
 
 extern uint8_t	_end[];
 

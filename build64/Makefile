@@ -1,4 +1,4 @@
-AS = as -64
+AS = gcc
 CC = gcc
 
 GIT = git
@@ -10,7 +10,7 @@ else
 endif
 
 CFLAGS = -std=c11 -Wall -Wextra -Wshadow -m64 -march=x86-64 -mno-mmx -mno-sse -mno-sse2 \
-         -fpic -fno-builtin -ffreestanding -fomit-frame-pointer -fno-stack-protector
+         -fpic -fno-builtin -ffreestanding -fomit-frame-pointer -fno-stack-protector -flto
 
 INC_DIRS = -I../boot -I../system -I../lib -I../tests -I../app -Iapp
 
@@ -64,7 +64,7 @@ APP_OBJS = app/badram.o \
            app/interrupt.o \
            app/main.o
 
-OBJS = boot/startup.o boot/efisetup.o $(SYS_OBJS) $(LIB_OBJS) $(TST_OBJS) $(APP_OBJS)
+OBJS = boot/efisetup.o $(SYS_OBJS) $(LIB_OBJS) $(TST_OBJS) $(APP_OBJS)
 
 all: memtest.bin memtest.efi
 
@@ -75,7 +75,7 @@ all: memtest.bin memtest.efi
 -include $(subst .o,.d,$(APP_OBJS))
 
 boot/%.o: boot/%.s
-	$(AS) $< -o $@
+	$(AS) -c -flto -ffreestanding -nostdlib $< -o $@
 
 boot/startup.s: ../boot/startup64.S ../boot/boot.h
 	@mkdir -p boot
@@ -126,9 +126,14 @@ FORCE:
 # Link it statically once so I know I don't have undefined symbols and
 # then link it dynamically so I have full relocation information.
 
-memtest_shared: $(OBJS) ldscripts/memtest_shared.lds Makefile
-	$(LD) --warn-constructors --warn-common -static -T ldscripts/memtest_shared.lds -o $@ $(OBJS) && \
-	$(LD) -shared -Bsymbolic -T ldscripts/memtest_shared.lds -o $@ $(OBJS)
+memtest_shared: boot/startup.o $(OBJS) ldscripts/memtest_shared.lds Makefile
+	$(CC) -fpic -flto -ffreestanding -nostdlib -Wl,--warn-constructors -Wl,--warn-common -static -T ldscripts/memtest_shared.lds -o $@ boot/startup.o $(OBJS) && \
+	cp memtest_shared memtest_shared2 && \
+	echo STEP2 && \
+	$(CC) -fpic -r -o $@.o $(OBJS) && \
+	cp memtest_shared.o memtest_shared3 && \
+	echo STEP3 && \
+	$(CC) -fpic -nostdlib -shared -Bsymbolic -T ldscripts/memtest_shared.lds -o $@ boot/startup.o memtest_shared.o
 
 memtest_shared.bin: memtest_shared
 	objcopy -O binary $< memtest_shared.bin

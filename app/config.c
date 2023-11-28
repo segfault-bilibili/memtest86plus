@@ -39,6 +39,7 @@
 #include "tests.h"
 
 #include "config.h"
+#include "efi.h"
 
 //------------------------------------------------------------------------------
 // Constants
@@ -46,19 +47,19 @@
 
 // Origin and size of the pop-up window.
 
-#define POP_R       3
-#define POP_C       21
+#define POP_R       2
+#define POP_C       1
 
-#define POP_W       38
-#define POP_H       18
+#define POP_W       78
+#define POP_H       20
 
 #define POP_LAST_R  (POP_R + POP_H - 1)
 #define POP_LAST_C  (POP_C + POP_W - 1)
 
 #define POP_REGION  POP_R, POP_C, POP_LAST_R, POP_LAST_C
 
-#define POP_LM      (POP_C + 3)     // Left margin
-#define POP_LI      (POP_C + 5)     // List indent
+#define POP_LM      (POP_C + 23)     // Left margin
+#define POP_LI      (POP_C + 25)     // List indent
 
 #define SEL_W       32
 #define SEL_H       2
@@ -793,6 +794,126 @@ static void cpu_selection_menu(void)
     clear_screen_region(POP_REGION);
 }
 
+static void show_memory_map()
+{
+    const boot_params_t *boot_params = (boot_params_t *)boot_params_addr;
+
+    static const char *prompt = "<F8> Toggle | <F10> Exit menu";
+    static const char* e820_types[] = {
+        "NONE",
+        "RAM",
+        "RESERVED",
+        "ACPI",
+        "NVS",
+    };
+    static const char* desc_types[] = {
+        "ReservedMemoryType",
+        "LoaderCode",
+        "LoaderData",
+        "BootServicesCode",
+        "BootServicesData",
+        "RuntimeServiceCode",
+        "RuntimeServicesData",
+        "ConventionalMemory",
+        "UnusableMemory",
+        "ACPIReclaimMemory",
+        "ACPIMemoryNVS",
+        "MemoryMappedIO",
+        "MemoryMappedIOPortSpace",
+        "PalCode",
+        "PersistentMemory",
+        "Reserved",
+    };
+
+    clear_screen_region(POP_REGION);
+    prints(POP_R+0, POP_LI, prompt);
+
+    int toggle = 0;
+    const int entries_per_page = 16;
+    int page = 0;
+    int total_pages;
+    int type_len;
+
+    bool tty_update = enable_tty;
+    bool exit_menu = false;
+    while (!exit_menu) {
+        if (tty_update) {
+            tty_send_region(POP_REGION);
+        }
+        tty_update = enable_tty;
+
+        switch (get_key()) {
+          case '8':
+            clear_screen_region(POP_REGION);
+            prints(POP_R+0, POP_LI, prompt);
+            switch (toggle) {
+              case 0:
+                if (boot_params->func_entry_addr != 0) {
+                    printf(POP_R+1, POP_LM, "Found GetMemoryMap() at 0x%x", boot_params->func_entry_addr);
+                    printf(POP_R+2, POP_LM, "Hexdump of 256 bytes:");
+                    for (int i = 0; i < 16; i++) {
+                        for (int j = 0; j < 16; j++) {
+                            printf(POP_R+3+i, POP_LM+j*2, "%02x", boot_params->func_entry_data[i*16+j]);
+                        }
+                    }
+                } else {
+                    prints(POP_R+1, POP_LM, "GetMemoryMap not found");
+                }
+                ++toggle;
+                break;
+              case 1:
+                type_len = 8;
+                total_pages = (boot_params->e820_entries + entries_per_page - 1) / entries_per_page;
+                printf(POP_R+1, POP_LI, "%i e820_entries, page %i/%i", boot_params->e820_entries, page + 1, total_pages);
+                printf(POP_R+2, POP_C, "TYPE");
+                printf(POP_R+2, POP_C+type_len+1, "START-END");
+                printf(POP_R+2, POP_C+type_len+1+34, "START+SIZE");
+                for (int start = page * entries_per_page, i = 0; start + i < boot_params->e820_entries && i < entries_per_page; i++) {
+                    e820_entry_t entry = boot_params->e820_map[start + i];
+                    prints(POP_R+3+i, POP_C, e820_types[entry.type]);
+                    printf(POP_R+3+i, POP_C+type_len+1, "%016x-%016x %5kB+%kB", entry.addr, entry.addr + entry.size, entry.addr >> 10, entry.size >> 10);
+                }
+                if (++page >= total_pages) {
+                    page = 0;
+                    ++toggle;
+                }
+                break;
+              case 2:
+                type_len = 23;
+                int num_descs = boot_params->efi_info.mem_map_size / boot_params->efi_info.mem_desc_size;
+                total_pages = (num_descs + entries_per_page - 1) / entries_per_page;
+                printf(POP_R+1, POP_LI, "%i mem_descs, page %i/%i", num_descs, page + 1, total_pages);
+                printf(POP_R+2, POP_C, "TYPE");
+                printf(POP_R+2, POP_C+type_len+1, "START-END");
+                printf(POP_R+2, POP_C+type_len+1+34, "START+SIZE");
+                for (int start = page * entries_per_page, i = 0; start + i < num_descs && i < entries_per_page; i++) {
+                    efi_memory_desc_t *desc = boot_params->efi_info.mem_map + boot_params->efi_info.mem_desc_size * (start + i);
+                    uint64_t size = desc->num_pages << PAGE_SHIFT;
+                    prints(POP_R+3+i, POP_C, desc_types[desc->type >= 15 ? 15 : desc->type]);
+                    printf(POP_R+3+i, POP_C+type_len+1, "%016x-%016x %5kB+%kB", desc->phys_addr, desc->phys_addr + size, desc->phys_addr >> 10, size >> 10);
+                }
+                if (++page >= total_pages) {
+                    page = 0;
+                    ++toggle;
+                }
+                break;
+              default:
+                toggle = 0;
+            }
+            break;
+          case '0':
+            exit_menu = true;
+            break;
+          default:
+            usleep(1000);
+            tty_update = false;
+            break;
+        }
+    }
+
+    clear_screen_region(POP_REGION);
+}
+
 //------------------------------------------------------------------------------
 // Public Functions
 //------------------------------------------------------------------------------
@@ -853,7 +974,8 @@ void config_menu(bool initial)
             printf(POP_R+8,  POP_LI, "<F6>  Temperature %s", enable_temperature ? "disable" : "enable ");
             if (no_temperature) set_foreground_colour(WHITE);
             printf(POP_R+9,  POP_LI, "<F7>  Boot trace %s",  enable_trace  ? "disable" : "enable ");
-            prints(POP_R+10, POP_LI, "<F10> Exit menu");
+            prints(POP_R+10, POP_LI, "<F8>  Show memory map");
+            prints(POP_R+11, POP_LI, "<F10> Exit menu");
         } else {
             prints(POP_R+7,  POP_LI, "<F5>  Skip current test");
             prints(POP_R+8 , POP_LI, "<F10> Exit menu");
@@ -898,6 +1020,11 @@ void config_menu(bool initial)
           case '7':
             if (initial) {
                 enable_trace = !enable_trace;
+            }
+            break;
+          case '8':
+            if (initial) {
+                show_memory_map();
             }
             break;
           case '0':

@@ -106,7 +106,9 @@ typedef struct {
     uint32_t        cmd_line_size;
     uint8_t         unused7[0x2d0 - 0x23c];
     e820_entry_t    e820_map[E820_MAP_SIZE];
-    uint8_t         unused8[0xeec - 0xd00];
+    uint64_t        func_entry_addr;
+    uint8_t         func_entry_data[0x100];
+    uint8_t         unused8[0xeec - 0xe08];
 } __attribute__((packed)) boot_params_t;
 
 #endif /* BOOTPARAMS_H */

@@ -527,6 +527,9 @@ static efi_status_t set_efi_info_and_exit_boot_services(efi_handle_t handle, boo
         goto fail;
     }
 
+    boot_params->func_entry_addr = (uint64_t)sys_table->boot_services->get_memory_map;
+    memcpy(boot_params->func_entry_data, (uint8_t *)boot_params->func_entry_addr, 0x100);
+
     status = efi_call_bs(exit_boot_services, handle, mem_map_key);
     if (status == EFI_INVALID_PARAMETER) {
         // The memory map changed between efi_get_memory_map() and
